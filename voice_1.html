@@ -27,6 +27,12 @@
   td.ans small{display:block;font-size:11px;font-weight:400}
   td.ans.hit{background:var(--hit);color:var(--hitText)}
   td.ans.hit small{color:var(--hitText)}
+  td.ans.red.hit{background:#e74c3c;color:#fff}
+  td.ans.red.hit small{color:#fff}
+  td.ans.blue.hit{background:#5dade2;color:#06131d}
+  td.ans.blue.hit small{color:#06131d}
+  td.ans.yellow.hit{background:#f1c40f;color:#1a1500}
+  td.ans.yellow.hit small{color:#1a1500}
   tr.wait td.name::after{content:"真偽待ち";margin-left:6px;font-size:11px;color:#fff;background:var(--warn);border-radius:6px;padding:1px 6px}
   tr.wait td.ans{outline:2px dashed var(--warn);outline-offset:-4px}
   .note{color:var(--dim);font-size:13px;line-height:1.6}
@@ -74,7 +80,7 @@ const ROUND_SET = ["sight","accel"];   // 「1回目 偽」でまとめて決ま
 const DATA = {
   1: {water:["頭割","散開"], thunder:["散開","頭割"], accel:["止まる","動く"], sight:["早見ない","早見る"]},
   2: {water:["頭割","散開"], thunder:["散開","頭割"], accel:["止まる","動く"], sight:["遅見ない","遅見る"]},
-  c: {fire:["離れる","そのまま"], tsunami:["そのまま","離れる"]},
+  c: {fire:["中→離れる","中央"], tsunami:["中央","中→離れる"]},
 };
 const TRUE_W  = ["まる","マル","丸","〇","○","◯","イエス","いえす","Yes","yes","YES","イエース","真実","真","しん","シン","本当","ほんとう","ホント","ほんと","正","新","心","芯","神"];
 const FALSE_W = ["ばつ","バツ","罰","×","✕","✖","ノー","のー","No","no","NO","ノウ","偽り","偽","にせ","ニセ","嘘","うそ","ウソ","ぎ","ギ","義","儀","偽物"];
@@ -91,7 +97,10 @@ const truthToCol = t => (t===0) !== SWAP ? 0 : 1;
 function row(r, key, pair){
   const m = MECH[key];
   const sub = "";
-  const cells = pair.map((t,i)=>`<td class="ans" data-r="${r}" data-k="${key}" data-i="${i}">${t}<small>${colToTruth(i)===0?"真":"偽"}</small></td>`).join("");
+  const red = t => (key==="accel" && t==="止まる") || (key==="sight" && t.endsWith("見ない"));   // 赤でハイライトする答え
+  const blue = t => r!=="c" && t==="頭割";   // 水色でハイライトする答え
+  const yellow = t => r==="c" && t==="中→離れる";   // 黄色でハイライトする答え
+  const cells = pair.map((t,i)=>`<td class="ans${red(t)?" red":""}${blue(t)?" blue":""}${yellow(t)?" yellow":""}" data-r="${r}" data-k="${key}" data-i="${i}">${t}<small>${colToTruth(i)===0?"真":"偽"}</small></td>`).join("");
   return `<tr data-r="${r}" data-k="${key}"><td class="name"><img src="${IMGDATA[m.img]}" alt="">${m.label}${sub}</td>${cells}</tr>`;
 }
 function table(r, title){
@@ -101,7 +110,7 @@ function table(r, title){
 }
 function areaTable(){
   const rows = [1,2].map(r=>`<tr><td class="name">${r}回目</td>` +
-    ["踏んだ","踏まない"].map((t,i)=>`<td class="ans" data-r="a" data-k="${r}" data-i="${i}">${t}</td>`).join("") + `</tr>`).join("");
+    ["踏んだ","踏まない"].map((t,i)=>`<td class="ans${i===0?" red":""}" data-r="a" data-k="${r}" data-i="${i}">${t}</td>`).join("") + `</tr>`).join("");
   return `<table id="ta"><caption>エリア</caption>${rows}</table>`;
 }
 function build(){
