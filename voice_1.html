@@ -213,9 +213,7 @@ if (!SR){
   micBtn.disabled = true;
   heard.innerHTML = '<span class="err">このブラウザは音声認識に未対応です（Chrome / Edge 推奨）</span>';
 } else {
-  // iPhone/iPad の Safari は continuous が不安定なので、1回ずつ聞いて自動で再開する
-  const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1);
-  rec = new SR(); rec.lang="ja-JP"; rec.continuous=!IOS; rec.interimResults=true;
+  rec = new SR(); rec.lang="ja-JP"; rec.continuous=true; rec.interimResults=true;
   rec.onresult = e=>{
     for (let i=e.resultIndex;i<e.results.length;i++){
       const r=e.results[i], txt=r[0].transcript;
@@ -236,7 +234,7 @@ if (!SR){
     if (e.error!=="network"){ listening=false; ui(); }
   };
   rec.onstart = ()=>{ if (heard.textContent.indexOf("聞き取り")<0) heard.innerHTML = "聞き取り中…"; };
-  rec.onend = ()=>{ if (listening) setTimeout(()=>{ try{ rec.start(); }catch(_){} }, IOS?150:0); };
+  rec.onend = ()=>{ if (listening) try{ rec.start(); }catch(_){} };
   micBtn.onclick = ()=>{ listening=!listening; if (listening) try{ rec.start(); }catch(_){} else rec.stop(); ui(); };
 }
 function ui(){ micBtn.classList.toggle("listening",listening); micBtn.textContent = listening ? "⏹ 音声オフ" : "🎤 音声オン"; }
