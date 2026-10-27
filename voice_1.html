@@ -11,6 +11,7 @@
   body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;padding:12px 16px 40px}
   header{position:sticky;top:0;background:var(--bg);display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:4px 0 8px;z-index:1}
   button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:10px;padding:10px 14px;cursor:pointer}
+  #tts.on{border-color:var(--hit);color:var(--hit)}
   #mic.listening{background:#c0392b;border-color:#c0392b;color:#fff}
   #heard{flex:1 1 100%;min-height:1.4em;color:var(--dim);font-size:14px}
   #heard b{color:var(--text)}
@@ -47,6 +48,7 @@
 <header>
   <button id="mic">🎤 音声オン</button>
   <button id="reset">リセット</button>
+  <button id="tts" class="on">🔊 読み上げオン</button>
   <div id="heard">「1回目 偽」「水 しん、雷 にせ」のように話してください</div>
 </header>
 
@@ -153,16 +155,41 @@ function paint(){
 const TIMER_SEC = {1:50, 2:60}, TIMER_IDLE = {1:"50 s", 2:"1 m"};
 const timers = {};   // timers[回] = 終了時刻(ms)
 function startTimer(r){ if (!(r in timers)) timers[r] = Date.now() + TIMER_SEC[r]*1000; }   // 走行中なら再スタートしない
+// ---- 読み上げ ----
+let spoken = {};          // spoken[回] = 0秒で読み上げ済み
+let ttsOn = true;
+const SAY_ROUNDS = [1,2];   // 0秒で読み上げる回
+function say(text){
+  if (!ttsOn || !window.speechSynthesis || !text) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "ja-JP"; u.rate = 1.1; u.volume = 1;
+  speechSynthesis.speak(u);
+}
+function announce(r){
+  if (!SAY_ROUNDS.includes(r)) return;
+  const words = [];
+  const a = state[r].accel, v = state[r].sight;
+  if (a!==undefined) words.push(DATA[r].accel[truthToCol(a)]);                       // 止まる / 動く
+  if (v!==undefined) words.push(DATA[r].sight[truthToCol(v)].replace(/^[早遅]/,""));   // 見る / 見ない
+  say(words.join("、"));
+}
+// iPhone/iPad は最初のタップで読み上げを有効化しておく必要がある
+document.addEventListener("click", function unlock(){
+  if (window.speechSynthesis){ const u = new SpeechSynthesisUtterance(" "); u.volume = 0; speechSynthesis.speak(u); }
+  document.removeEventListener("click", unlock);
+}, true);
 function tick(){
   for (const r of [1,2]){
     const el = document.getElementById("tm"+r); if (!el) continue;
     if (!(r in timers)){ el.textContent = TIMER_IDLE[r]; el.classList.remove("zero"); continue; }
     const left = Math.max(0, Math.ceil((timers[r]-Date.now())/1000));
     el.textContent = left + " s"; el.classList.toggle("zero", left===0);
+    if (left===0 && !spoken[r]){ spoken[r]=true; announce(r); }
   }
 }
 setInterval(tick, 200);
-function reset(){ delete timers[1]; delete timers[2]; tick(); state[1]={}; state[2]={}; state.c={}; state.a={}; delete roundTruth[1]; delete roundTruth[2]; pending[1].clear(); pending[2].clear(); paint(); }
+function reset(){ delete timers[1]; delete timers[2]; spoken={}; speechSynthesis && speechSynthesis.cancel(); tick(); state[1]={}; state[2]={}; state.c={}; state.a={}; delete roundTruth[1]; delete roundTruth[2]; pending[1].clear(); pending[2].clear(); paint(); }
 
 // ---- 解析 ----
 const esc = s=>s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
@@ -285,6 +312,9 @@ if (!SR){
 function ui(){ micBtn.classList.toggle("listening",listening); micBtn.textContent = listening ? "⏹ 音声オフ" : "🎤 音声オン"; }
 
 document.getElementById("reset").onclick = reset;
+const ttsBtn = document.getElementById("tts");
+if (!window.speechSynthesis){ ttsBtn.disabled = true; ttsBtn.textContent = "🔇 読み上げ非対応"; ttsBtn.classList.remove("on"); }
+ttsBtn.onclick = ()=>{ ttsOn = !ttsOn; ttsBtn.classList.toggle("on", ttsOn); ttsBtn.textContent = ttsOn ? "🔊 読み上げオン" : "🔇 読み上げオフ"; if (ttsOn) say("読み上げオン"); };
 build(); paint();
 </script>
 </body>
