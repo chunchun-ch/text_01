@@ -17,13 +17,17 @@
   table{width:100%;border-collapse:collapse;margin:4px 0 14px;background:var(--card);border-radius:12px;overflow:hidden;border:2px solid transparent}
   table.target{border-color:var(--focus)}
   caption{text-align:left;font-weight:700;padding:4px 2px;color:var(--dim)}
+  caption .timer{color:#fff;margin-left:12px;font-variant-numeric:tabular-nums}
+  caption .timer.zero{color:#e74c3c}
   caption .tag{display:none;margin-left:8px;font-size:12px;color:#fff;background:var(--focus);border-radius:6px;padding:1px 6px}
   table.target caption .tag{display:inline}
   td{border-bottom:1px solid var(--line);padding:8px;text-align:center;font-size:20px;font-weight:600;transition:background .15s}
   td.name{text-align:left;width:40%;font-size:16px;white-space:nowrap}
   td.name img{width:40px;height:40px;object-fit:cover;vertical-align:middle;border-radius:6px;margin-right:6px}
   td.name small{color:var(--dim);font-size:11px;font-weight:400;margin-left:2px}
-  td.ans{color:var(--dim);cursor:pointer}
+  tr.gap td{height:14px;padding:0;background:var(--bg);border-bottom:1px solid var(--line)}
+  table{table-layout:fixed}
+  td.ans{color:var(--dim);cursor:pointer;width:30%;word-break:keep-all;overflow-wrap:anywhere}
   td.ans small{display:block;font-size:11px;font-weight:400}
   td.ans.hit{background:var(--hit);color:var(--hitText)}
   td.ans.hit small{color:var(--hitText)}
@@ -105,8 +109,11 @@ function row(r, key, pair){
 }
 function table(r, title){
   const tag = r==="c" ? "" : `<span class="tag">次の入力先</span>`;
-  return `<table id="t${r}"><caption>${title}${tag}</caption>` +
-    Object.entries(DATA[r]).map(([k,p])=>row(r,k,p)).join("") + `</table>`;
+  const tm = r==1 ? "50 s" : "1 m";
+  return `<table id="t${r}"><caption>${title}<span class="timer" id="tm${r}">${tm}</span>${tag}</caption>` +
+    Object.entries(DATA[r]).map(([k,p])=>row(r,k,p)).join("") +
+    `<tr class="gap"><td colspan="3"></td></tr>` +
+    (r==1 ? row("c","fire",DATA.c.fire) : row("c","tsunami",DATA.c.tsunami)) + `</table>`;   // 1回目の後にほのお、2回目の後につなみ
 }
 function areaTable(){
   const rows = [1,2].map(r=>`<tr><td class="name">${r}回目</td>` +
@@ -114,12 +121,15 @@ function areaTable(){
   return `<table id="ta"><caption>エリア</caption>${rows}</table>`;
 }
 function build(){
-  document.getElementById("tables").innerHTML = table(1,"1回目") + table(2,"2回目") + table("c","共通") + areaTable();
+  document.getElementById("tables").innerHTML = table(1,"1回目") + table(2,"2回目") + areaTable();
   document.querySelectorAll("td.ans").forEach(td=>td.onclick=()=>{
     const r = td.dataset.r, k = td.dataset.k, i = +td.dataset.i;
     state[r][k] = r==="a" ? i : colToTruth(i);
-    paint();
+    const tid = td.closest("table").id;   // 1回目/2回目の表のセルをタップしたらその回のタイマー開始
+    if (tid==="t1") startTimer(1); else if (tid==="t2") startTimer(2);
+    tick(); paint();
   });
+  [1,2].forEach(r=>{ const el=document.getElementById("tm"+r); el.style.cursor="pointer"; el.onclick=e=>{ e.stopPropagation(); startTimer(r); tick(); }; });
 }
 
 // ---- 状態 ----
@@ -139,7 +149,20 @@ function paint(){
   document.getElementById("t1").classList.toggle("target", tgt===1);
   document.getElementById("t2").classList.toggle("target", tgt===2 && !done);
 }
-function reset(){ state[1]={}; state[2]={}; state.c={}; state.a={}; delete roundTruth[1]; delete roundTruth[2]; pending[1].clear(); pending[2].clear(); paint(); }
+// ---- カウントダウン ----
+const TIMER_SEC = {1:50, 2:60}, TIMER_IDLE = {1:"50 s", 2:"1 m"};
+const timers = {};   // timers[回] = 終了時刻(ms)
+function startTimer(r){ if (!(r in timers)) timers[r] = Date.now() + TIMER_SEC[r]*1000; }   // 走行中なら再スタートしない
+function tick(){
+  for (const r of [1,2]){
+    const el = document.getElementById("tm"+r); if (!el) continue;
+    if (!(r in timers)){ el.textContent = TIMER_IDLE[r]; el.classList.remove("zero"); continue; }
+    const left = Math.max(0, Math.ceil((timers[r]-Date.now())/1000));
+    el.textContent = left + " s"; el.classList.toggle("zero", left===0);
+  }
+}
+setInterval(tick, 200);
+function reset(){ delete timers[1]; delete timers[2]; tick(); state[1]={}; state[2]={}; state.c={}; state.a={}; delete roundTruth[1]; delete roundTruth[2]; pending[1].clear(); pending[2].clear(); paint(); }
 
 // ---- 解析 ----
 const esc = s=>s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
@@ -179,6 +202,7 @@ function parse(text){
       ctx = m.tag==="R1" ? 1 : 2;
       if (tw){   // 「1回目 偽」→ その回の真偽を記憶し、視線・加速度を決定
         roundTruth[ctx] = tw.tag;
+        startTimer(ctx);
         ROUND_SET.forEach(k=>state[ctx][k]=tw.tag);
         out.push(`${ctx}回目 ${tf(tw.tag)}`);
         pending[ctx].forEach(pk=>{ state[ctx][pk]=tw.tag; out.push(`${ctx}回目 ${MECH[pk].label} ${tf(tw.tag)}`); });
